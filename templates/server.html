@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8" />
+<title>Server quản lý truyền file</title>
+<!-- Tailwind CSS CDN -->
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  body {
+    font-family: 'Inter', sans-serif;
+    background-color: #f0f2f5; /* Light grey background */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    margin: 0;
+  }
+  .fb-container {
+    background-color: #fff;
+    padding: 2rem; /* p-8 */
+    border-radius: 1.5rem; /* rounded-3xl */
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1); /* shadow-xl */
+    max-width: 48rem; /* Tăng kích thước tối đa để chứa nhiều thông tin hơn */
+    width: 100%;
+    text-align: center;
+    border: 1px solid #e2e8f0; /* Subtle border */
+  }
+  .fb-header {
+    font-size: 2.25rem; /* text-4xl */
+    font-weight: 700; /* font-bold */
+    color: #4f46e5; /* Deep purple */
+    margin-bottom: 2rem; /* mb-8 */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .fb-header::before {
+    content: '📊'; /* Chart icon for server */
+    margin-right: 12px;
+    font-size: 1.2em;
+  }
+  h2 {
+    font-size: 1.5rem; /* text-2xl */
+    font-weight: 600; /* font-semibold */
+    color: #333;
+    margin-top: 1.5rem; /* mt-6 */
+    margin-bottom: 1rem; /* mb-4 */
+    border-bottom: 1px solid #eee;
+    padding-bottom: 0.5rem;
+  }
+  .logs-container {
+    height: 300px;
+    overflow-y: scroll;
+    background: #f8fafc; /* bg-gray-50 */
+    padding: 1rem; /* p-4 */
+    border-radius: 0.5rem; /* rounded-lg */
+    border: 1px solid #e2e8f0; /* border border-gray-200 */
+    margin-bottom: 1.5rem; /* mb-6 */
+    box-shadow: inset 0 1px 3px 0 rgba(0,0,0,0.05); /* inset shadow */
+  }
+  .log-entry {
+    background-color: #ffffff; /* White background for individual logs */
+    border: 1px solid #e2e8f0; /* border-gray-200 */
+    border-radius: 0.5rem; /* rounded-lg */
+    padding: 1rem; /* p-4 */
+    margin-bottom: 0.75rem; /* mb-3 */
+    box-shadow: 0 1px 3px 0 rgba(0,0,0,0.1), 0 1px 2px 0 rgba(0,0,0,0.06); /* shadow-sm */
+    text-align: left; /* Align text left within log entry */
+  }
+  .log-entry h3 {
+    margin-top: 0;
+    color: #4f46e5; /* text-indigo-700 */
+    font-size: 1.1em; /* text-lg */
+    font-weight: 600; /* font-semibold */
+    border-bottom: 1px solid #ebf4ff; /* border-indigo-100 */
+    padding-bottom: 0.5rem;
+    margin-bottom: 0.5rem;
+  }
+  .log-entry p {
+    margin: 0.25rem 0; /* my-1 */
+    color: #4b5563; /* text-gray-700 */
+    font-size: 0.875rem; /* text-sm */
+  }
+  .log-entry strong {
+    color: #1f2937; /* text-gray-900 */
+  }
+  .log-entry code {
+    background-color: #e0e7ff; /* bg-indigo-100 */
+    border-radius: 0.25rem; /* rounded */
+    padding: 0.15rem 0.4rem; /* px-1.5 py-0.5 */
+    font-family: monospace;
+    font-size: 0.85em;
+    color: #4338ca; /* text-indigo-700 */
+    word-break: break-all; /* Ensure long keys wrap */
+  }
+  .log-entry .status-completed {
+    color: #10b981; /* text-green-600 */
+    font-weight: bold;
+  }
+  .log-entry .connection-status-connect {
+    color: #10b981; /* text-green-600 */
+    font-weight: bold;
+  }
+  .log-entry .connection-status-disconnect {
+    color: #ef4444; /* text-red-600 */
+    font-weight: bold;
+  }
+</style>
+</head>
+<body>
+<div class="fb-container">
+  <h1 class="fb-header">Server quản lý</h1>
+  
+  <h2>Nhật ký kết nối Socket.IO:</h2>
+  <div id="connectionLogs" class="logs-container">
+    <p style="text-align: center; color: #888;">Chưa có sự kiện kết nối nào.</p>
+  </div>
+
+  <h2>Thông tin chi tiết chuyển giao file:</h2>
+  <div id="transferLogs" class="logs-container">
+    <p style="text-align: center; color: #888;">Chưa có chuyển giao file nào được hoàn thành.</p>
+  </div>
+</div>
+
+<!-- Đã di chuyển toàn bộ khối script xuống cuối body và bọc trong DOMContentLoaded -->
+<script src="https://cdn.socket.io/4.6.1/socket.io.min.js"></script> <!-- Ensure this is here -->
+<script>
+  document.addEventListener('DOMContentLoaded', (event) => {
+    const socket = io();
+    const connectionLogsDiv = document.getElementById('connectionLogs');
+    const transferLogsDiv = document.getElementById('transferLogs');
+
+    // Helper function to append log messages
+    function appendConnectionLog(message, type) {
+      const timestamp = new Date().toLocaleTimeString();
+      const logEntry = document.createElement('div');
+      logEntry.className = 'log-entry'; // Use log-entry for consistent styling
+      logEntry.innerHTML = `<p><strong class="${type === 'connect' ? 'connection-status-connect' : 'connection-status-disconnect'}">[${timestamp}]</strong> ${message}</p>`;
+      
+      // Clear initial message if present
+      if (connectionLogsDiv.querySelector('p[style*="text-align: center"]')) {
+          connectionLogsDiv.innerHTML = '';
+      }
+      connectionLogsDiv.appendChild(logEntry);
+      connectionLogsDiv.scrollTop = connectionLogsDiv.scrollHeight;
+    }
+
+    socket.on('connect', () => {
+      appendConnectionLog('🔗 Đã kết nối server.', 'connect');
+    });
+
+    socket.on('disconnect', () => {
+      appendConnectionLog('🔴 Mất kết nối server.', 'disconnect');
+    });
+
+    // Lắng nghe sự kiện mới 'transfer_complete_details'
+    socket.on('transfer_complete_details', (data) => {
+      console.log("Nhận thông tin chuyển giao file chi tiết:", data);
+      const timestamp = new Date().toLocaleTimeString();
+
+      // Xóa thông báo "Chưa có" nếu đây là bản ghi đầu tiên
+      if (transferLogsDiv.querySelector('p[style*="text-align: center"]')) {
+          transferLogsDiv.innerHTML = '';
+      }
+
+      const logEntry = document.createElement('div');
+      logEntry.className = 'log-entry';
+      logEntry.innerHTML = `
+        <h3>✅ Chuyển giao file hoàn thành</h3>
+        <p><strong>Tên file:</strong> ${data.filename}</p>
+        <p><strong>Kích thước gốc:</strong> ${data.original_size_bytes} bytes</p>
+        <p><strong>Số đoạn:</strong> ${data.num_chunks}</p>
+        <p><strong>Thời gian tải lên:</strong> ${new Date(data.upload_timestamp).toLocaleString()}</p>
+        <p><strong>Khóa phiên (hex):</strong> <code>${data.session_key_hex}</code></p>
+        <p><strong>Khóa công khai Người nhận (snippet):</strong> <code>...${data.receiver_public_key_snippet}...</code></p>
+        <p><strong>SID Người gửi:</strong> <code>${data.sender_client_sid}</code></p>
+        <p><strong>SID Người nhận:</strong> <code>${data.receiver_client_sid}</code></p>
+        <p><strong>Trạng thái:</strong> <span class="status-completed">${data.status}</span></p>
+      `;
+      transferLogsDiv.appendChild(logEntry);
+      transferLogsDiv.scrollTop = transferLogsDiv.scrollHeight; // Cuộn xuống dưới cùng
+    });
+  }); // End DOMContentLoaded listener
+</script>
+</body>
+</html>

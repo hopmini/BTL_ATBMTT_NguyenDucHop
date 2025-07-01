@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <title>Người Nhận - Nhận file bảo mật</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <!-- Thêm CryptoJS cho DES3 và các hàm băm khác -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: #f0f2f5; /* Light grey background */
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      margin: 0;
+    }
+    .fb-container {
+      background-color: #fff;
+      padding: 2rem; /* p-8 */
+      border-radius: 1.5rem; /* rounded-3xl */
+      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1); /* shadow-xl */
+      max-width: 32rem; /* max-w-lg */
+      width: 100%;
+      text-align: center;
+      border: 1px solid #e2e8f0; /* Subtle border */
+    }
+    .fb-header {
+      font-size: 2.25rem; /* text-4xl */
+      font-weight: 700; /* font-bold */
+      color: #4f46e5; /* Deep purple */
+      margin-bottom: 2rem; /* mb-8 */
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .fb-header::before {
+      content: '🎧'; /* Audio icon */
+      margin-right: 12px;
+      font-size: 1.2em;
+    }
+    .fb-key-input {
+      width: 100%;
+      padding: 0.75rem; /* p-3 */
+      margin-bottom: 1.5rem; /* mb-6 */
+      border-width: 1px; /* border */
+      border-color: #d1d5db; /* border-gray-300 */
+      border-radius: 0.5rem; /* rounded-lg */
+      outline: none; /* focus:outline-none */
+      box-shadow: 0 0 0 2px rgba(99, 102, 241, 0); /* focus:ring-2 focus:ring-indigo-500 (initially transparent) */
+      transition: box-shadow 0.2s ease-in-out; /* Add transition for focus ring */
+      color: #374151; /* text-gray-700 */
+      font-size: 0.875rem; /* text-sm */
+      min-height: 120px; /* More height for keys */
+      resize: vertical; /* Allow vertical resizing */
+      background-color: #f8fafc; /* bg-gray-50 for readonly */
+      cursor: default; /* Indicate it's readonly */
+    }
+    .fb-key-input:focus {
+      border-color: #6366f1; /* focus:border-indigo-500 */
+      box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.5); /* focus:ring-2 focus:ring-indigo-500 */
+    }
+    .fb-button {
+      width: 100%;
+      padding-left: 1.5rem; /* px-6 */
+      padding-right: 1.5rem; /* px-6 */
+      padding-top: 0.75rem; /* py-3 */
+      padding-bottom: 0.75rem; /* py-3 */
+      background-image: linear-gradient(to right, #6366f1, #9333ea); /* bg-gradient-to-r from-indigo-500 to-purple-600 */
+      color: #fff; /* text-white */
+      font-weight: 700; /* font-bold */
+      border-radius: 9999px; /* rounded-full */
+      box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05); /* shadow-lg */
+      outline: none; /* focus:outline-none */
+      transition-property: all; /* transition */
+      transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1); /* ease-in-out */
+      transition-duration: 300ms; /* duration-300 */
+      transform: translate(var(--tw-translate-x), var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y)); /* transform */
+      letter-spacing: 0.05em; /* Slightly more space for button text */
+      cursor: pointer; /* Ensure cursor is pointer */
+    }
+    .fb-button:hover:not(:disabled) { /* Apply hover only if not disabled */
+      background-image: linear-gradient(to right, #4f46e5, #7e22ce); /* hover:from-indigo-600 hover:to-purple-700 */
+      transform: translateY(-4px); /* hover:-translate-y-1 */
+    }
+    .fb-button:focus {
+      box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.5), 0 0 0 4px rgba(99, 102, 241, 0.25); /* focus:ring-2 focus:ring-indigo-500 focus:ring-opacity-75 */
+    }
+    .fb-button:disabled { /* Styling for disabled button */
+        opacity: 0.6;
+        cursor: not-allowed;
+        background-image: linear-gradient(to right, #9ca3af, #6b7280); /* Grey out when disabled */
+        transform: none; /* No transform when disabled */
+        box-shadow: none; /* No shadow when disabled */
+    }
+    .fb-status {
+      margin-top: 1.5rem; /* mt-6 */
+      font-size: 1.125rem; /* text-lg */
+      font-weight: 500; /* font-medium */
+      color: #374151; /* text-gray-700 */
+    }
+    .fb-label {
+        display: block;
+        text-align: left;
+        color: #374151; /* text-gray-700 */
+        font-size: 0.875rem; /* text-sm */
+        font-weight: 700; /* font-bold */
+        margin-bottom: 0.5rem; /* mb-2 */
+    }
+  </style>
+</head>
+<body>
+  <div class="fb-container">
+    <h1 class="fb-header">Người Nhận</h1>
+
+    <label class="fb-label" for="senderKey">Khóa công khai người gửi (PEM):</label>
+    <textarea id="senderKey" rows="6" class="fb-key-input" readonly placeholder="Khóa công khai của người gửi sẽ xuất hiện ở đây..."></textarea>
+    <button id="confirmKeyBtn" class="fb-button" disabled>Xác nhận khóa</button>
+
+    <p id="status" class="fb-status">Chưa kết nối server.</p>
+
+    <div id="downloadSection" style="display:none;">
+      <a id="downloadLink" href="#" class="fb-button" download="received_recording.mp3">📥 Tải file đã giải mã</a>
+    </div>
+  </div>
+
+  <!-- Đã di chuyển toàn bộ khối script xuống cuối body và bọc trong DOMContentLoaded -->
+  <script src="https://cdn.socket.io/4.6.1/socket.io.min.js"></script> <!-- Ensure this is here -->
+  <script>
+    document.addEventListener('DOMContentLoaded', (event) => {
+      const socket = io();
+      const statusDiv = document.getElementById('status');
+      const confirmKeyBtn = document.getElementById('confirmKeyBtn');
+      const senderKeyTextarea = document.getElementById('senderKey');
+      const downloadSection = document.getElementById('downloadSection');
+      const downloadLink = document.getElementById('downloadLink');
+
+      let senderPublicKeyPem = '';
+      let decryptedSessionKey = null; // Đây sẽ là khóa phiên giải mã được (Uint8Array)
+      let receivedChunks = [];
+      let fileMetadata = null;
+      let totalChunksExpected = 3; // Có thể lấy từ metadata nếu được gửi
+
+      // --- Helper functions ---
+      function arrayBufferToBase64(buffer) {
+          let binary = '';
+          const bytes = new Uint8Array(buffer);
+          const len = bytes.byteLength;
+          for (let i = 0; i < len; i++) {
+              binary += String.fromCharCode(bytes[i]);
+          }
+          return btoa(binary);
+      }
+
+      function base64ToUint8Array(base64) {
+          return Uint8Array.from(atob(base64), c => c.charCodeAt(0));
+      }
+      
+      function decryptDes3(data_base64, key_uint8array, iv_uint8array) {
+          const keyHex = CryptoJS.enc.Hex.parse(Array.from(key_uint8array).map(b => b.toString(16).padStart(2, '0')).join(''));
+          const ivHex = CryptoJS.enc.Hex.parse(Array.from(iv_uint8array).map(b => b.toString(16).padStart(2, '0')).join(''));
+          const cipherParams = CryptoJS.lib.CipherParams.create({
+              ciphertext: CryptoJS.enc.Base64.parse(data_base64)
+          });
+
+          const decrypted = CryptoJS.TripleDES.decrypt(
+              cipherParams,
+              keyHex,
+              { iv: ivHex, mode: CryptoJS.mode.CBC, padding: CryptoJS.pad.Pkcs7 }
+          );
+          const wordArray = decrypted;
+          const resultBytes = [];
+          for (let i = 0; i < wordArray.sigBytes; i++) {
+              resultBytes.push((wordArray.words[i >>> 2] >>> (24 - (i % 4) * 8)) & 0xff);
+          }
+          return new Uint8Array(resultBytes);
+      }
+
+      function calculateSha512(data_uint8array) {
+          const wordArray = CryptoJS.lib.WordArray.create(data_uint8array);
+          const hash = CryptoJS.SHA512(wordArray);
+          const resultBytes = [];
+          for (let i = 0; i < hash.sigBytes; i++) {
+              resultBytes.push((hash.words[i >>> 2] >>> (24 - (i % 4) * 8)) & 0xff);
+          }
+          return new Uint8Array(resultBytes);
+      }
+
+      function compareUint8Arrays(arr1, arr2) {
+          if (arr1.length !== arr2.length) return false;
+          for (let i = 0; i < arr1.length; i++) {
+              if (arr1[i] !== arr2[i]) return false;
+          }
+          return true;
+      }
+
+      // TODO: Triển khai các hàm Web Crypto API cho RSA (import public key, verify signature)
+      // Các hàm này vẫn cần để xác thực bảo mật thực tế của metadata và các chunk
+      async function importPublicKey(pemKey) {
+          console.warn("Chức năng import public key RSA chưa được triển khai hoàn chỉnh. Cần Web Crypto API.");
+          return null;
+      }
+
+      async function verifyRsaSignature(publicKey, hashUint8Array, signatureUint8Array) {
+          console.warn("Chức năng xác minh chữ ký RSA chưa được triển khai hoàn chỉnh. Cần Web Crypto API.");
+          return true;
+      }
+      // --- End Helper functions ---
+
+      socket.on('connect', () => {
+        statusDiv.innerText = '🔗 Đã kết nối server. Báo người nhận sẵn sàng...';
+        socket.emit('receiver_ready'); // Báo cho server biết người nhận sẵn sàng
+      });
+
+      socket.on('sender_public_key', (data) => {
+        senderPublicKeyPem = data.key;
+        senderKeyTextarea.value = senderPublicKeyPem;
+        statusDiv.innerText = '🔑 Đã nhận khóa công khai người gửi, vui lòng xác nhận.';
+        confirmKeyBtn.disabled = false; // Kích hoạt nút xác nhận
+      });
+
+      confirmKeyBtn.onclick = () => {
+        if (!senderPublicKeyPem) {
+          alert("Chưa nhận được khóa công khai người gửi.");
+          return;
+        }
+        statusDiv.innerText = 'Chấp nhận khóa công khai, chờ nhận file...';
+        socket.emit('public_key_confirm', {status: 'ok'});
+
+        confirmKeyBtn.disabled = true;
+        senderKeyTextarea.style.display = 'none';
+        confirmKeyBtn.style.display = 'none';
+      };
+
+      socket.on('meta', (data) => {
+        statusDiv.innerText = '📄 Đã nhận metadata.';
+        fileMetadata = data.meta;
+        const signatureBase64 = data.signature;
+
+        // TODO: Xác minh chữ ký metadata (cần triển khai importPublicKey và verifyRsaSignature)
+        console.log('Metadata:', fileMetadata);
+        console.log('Metadata Signature (Base64):', signatureBase64);
+      });
+
+      // Sự kiện mới: Nhận khóa phiên đã được giải mã từ server
+      socket.on('decrypted_session_key', (data) => {
+          statusDiv.innerText = '🔓 Đã nhận khóa phiên đã giải mã từ server.';
+          decryptedSessionKey = base64ToUint8Array(data.key);
+          console.log('Decrypted session key received:', decryptedSessionKey);
+          if (decryptedSessionKey.length !== 24) {
+              console.error("Lỗi: Khóa phiên đã giải mã có độ dài không đúng (không phải 24 byte)!");
+              statusDiv.innerText = "Lỗi: Khóa phiên không hợp lệ.";
+              socket.disconnect();
+          }
+      });
+
+      socket.on('key', async (data) => {
+        statusDiv.innerText = '🔐 Đã nhận khóa phiên mã hóa (dành cho server để giải mã).';
+        console.log('Encrypted session key (base64) received for server:', data.enc_key);
+      });
+
+      socket.on('chunk', async (data) => {
+        statusDiv.innerText = `📦 Đang nhận đoạn ${data.index + 1}/${totalChunksExpected}...`;
+
+        const index = data.index;
+        const iv_base64 = data.iv;
+        const cipher_base64 = data.cipher;
+        const hash_base64 = data.hash;
+        const sig_base64 = data.sig;
+
+        const iv_uint8 = base64ToUint8Array(iv_base64);
+        const cipher_uint8 = base64ToUint8Array(cipher_base64);
+        const received_hash_uint8 = base64ToUint8Array(hash_base64);
+        const sig_uint8 = base64ToUint8Array(sig_base64);
+
+        // 1. Kiểm tra hash = SHA512(iv || cipher)
+        const combinedData = new Uint8Array(iv_uint8.length + cipher_uint8.length);
+        combinedData.set(iv_uint8, 0);
+        combinedData.set(cipher_uint8, iv_uint8.length);
+        const calculated_hash_uint8 = calculateSha512(combinedData);
+
+        if (!compareUint8Arrays(calculated_hash_uint8, received_hash_uint8)) {
+          console.error(`Lỗi Hash đoạn ${index}: Hash không khớp!`);
+          statusDiv.innerText = `Lỗi: Hash đoạn ${index} không khớp!`;
+          socket.disconnect();
+          return;
+        }
+        console.log(`Hash đoạn ${index} HỢP LỆ.`);
+
+        // 2. Verify chữ ký sig với hash và khóa public người gửi (cần triển khai verifyRsaSignature)
+        // const senderPublicKeyObj = await importPublicKey(senderPublicKeyPem); 
+        // const isValidChunkSig = await verifyRsaSignature(senderPublicKeyObj, received_hash_uint8, sig_uint8);
+        // if (!isValidChunkSig) {
+        //   console.error(`Lỗi Chữ ký đoạn ${index}: Chữ ký không hợp lệ!`);
+        //   statusDiv.innerText = `Lỗi: Chữ ký đoạn ${index} không hợp lệ!`;
+        //   socket.disconnect();
+        //   return;
+        // }
+        console.log(`Chữ ký đoạn ${index} HỢP LỆ (Giả định, cần xác minh).`);
+
+        receivedChunks[index] = {
+          index: index,
+          iv: iv_uint8,
+          cipher: cipher_base64 
+        };
+
+        console.log(`Nhận đoạn ${index + 1}`, {iv_base64, cipher_base64, hash_base64, sig_base64});
+      });
+
+      socket.on('end', async () => {
+        statusDiv.innerText = '🎉 Đã nhận xong toàn bộ các đoạn file! Đang giải mã...';
+
+        // Kiểm tra xem khóa phiên đã giải mã đã có và hợp lệ chưa
+        if (!decryptedSessionKey || decryptedSessionKey.length !== 24) {
+            console.error("Lỗi: Khóa phiên chưa được giải mã hoặc không hợp lệ!");
+            statusDiv.innerText = "Lỗi: Khóa phiên không hợp lệ. Không thể giải mã.";
+            return;
+        }
+
+        if (Object.keys(receivedChunks).length !== totalChunksExpected) {
+            console.error(`Lỗi: Số lượng đoạn nhận được không đủ (${Object.keys(receivedChunks).length}/${totalChunksExpected})!`);
+            statusDiv.innerText = "Lỗi: Thiếu các đoạn file. Không thể giải mã.";
+            return;
+        }
+
+        const sortedChunks = Object.values(receivedChunks).sort((a, b) => a.index - b.index);
+
+        let decryptedParts = [];
+        for (let i = 0; i < sortedChunks.length; i++) {
+          const chunk = sortedChunks[i];
+          try {
+              const decryptedPart = decryptDes3(chunk.cipher, decryptedSessionKey, chunk.iv);
+              decryptedParts.push(decryptedPart);
+              console.log(`Đã giải mã đoạn ${i+1}.`);
+          } catch (e) {
+              console.error(`Lỗi khi giải mã đoạn ${i+1}:`, e);
+              statusDiv.innerText = `Lỗi khi giải mã đoạn ${i+1}. Vui lòng kiểm tra console.`;
+              return;
+          }
+        }
+
+        const finalBlob = new Blob(decryptedParts, { type: 'audio/mpeg' });
+        const fileUrl = URL.createObjectURL(finalBlob);
+
+        downloadLink.href = fileUrl;
+        // Cải tiến nhỏ: đảm bảo luôn có tên file, ngay cả khi metadata không có
+        downloadLink.download = fileMetadata && fileMetadata.filename ? 
+                                 `decoded_${fileMetadata.filename}` : 
+                                 'decoded_audio.mp3';
+        
+        downloadSection.style.display = 'block';
+
+        statusDiv.innerText = '✅ Đã giải mã file thành công! Bạn có thể tải xuống.';
+        console.log("File đã sẵn sàng để tải xuống.");
+      });
+
+      socket.on('send_cancel', (data) => {
+          statusDiv.innerText = `❌ Gửi file bị hủy: ${data.reason}`;
+          console.error("Gửi file bị hủy:", data.reason);
+      });
+
+      socket.on('disconnect', () => {
+        statusDiv.innerText = '🔴 Đã ngắt kết nối.';
+      });
+    }); // End DOMContentLoaded listener
+  </script>
+</body>
+</html>
